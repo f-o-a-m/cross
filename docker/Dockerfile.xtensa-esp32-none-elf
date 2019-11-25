@@ -1,0 +1,80 @@
+FROM ubuntu:18.04
+
+COPY common.sh /
+RUN /common.sh
+
+COPY xargo.sh /
+RUN /xargo.sh
+
+COPY cmake.sh /
+RUN apt-get purge --auto-remove -y cmake && \
+    /cmake.sh
+
+ENV LLVM_XTENSA_PREFIX="/llvm-xtensa"
+
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends g++ ninja-build python \
+ && export LLVM_XTENSA_SRC=/tmp/llvm-xtensa \
+ && export LLVM_XTENSA_BUILD="${LLVM_XTENSA_SRC}/build" \
+ && git clone --depth 1 https://github.com/espressif/llvm-xtensa.git "${LLVM_XTENSA_SRC}" \
+ && git clone --depth 1 https://github.com/espressif/clang-xtensa.git "${LLVM_XTENSA_SRC}/tools/clang" \
+ && mkdir -p "${LLVM_XTENSA_BUILD}" \
+ && cd "${LLVM_XTENSA_BUILD}" \
+ && cmake "${LLVM_XTENSA_SRC}" \
+      -G "Ninja" \
+      -DLLVM_TARGETS_TO_BUILD="Xtensa;X86" \
+      -DLLVM_INSTALL_UTILS=ON \
+      -DLLVM_BUILD_TESTS=0 \
+      -DLLVM_INCLUDE_TESTS=0 \
+      -DCMAKE_BUILD_TYPE=Release \
+      -DCMAKE_INSTALL_PREFIX="${LLVM_XTENSA_PREFIX}" \
+ && cmake --build . --target install \
+ && rm -r "${LLVM_XTENSA_BUILD}" "${LLVM_XTENSA_SRC}" \
+ && rm -rf /var/lib/apt/lists/*
+
+ENV RUST_XTENSA_SRC=/rust-xtensa-src
+ENV RUST_XTENSA_PREFIX=/rust-xtensa
+
+# https://github.com/MabezDev/rust-xtensa
+
+RUN apt-get update \
+ && apt-get install -y curl libssl-dev \
+ && git clone --depth 1 -b xtensa_1.39 https://github.com/chocol4te/rust "${RUST_XTENSA_SRC}" \
+ && cd "${RUST_XTENSA_SRC}" \
+ && mkdir -p "${RUST_XTENSA_PREFIX}" \
+ && ./configure --llvm-root="${LLVM_XTENSA_PREFIX}" --prefix="${RUST_XTENSA_PREFIX}" --release-channel=nightly \
+ && ./x.py build \
+ && ./x.py install \
+ && rm -rf /var/lib/apt/lists/*
+
+ENV XARGO_RUST_SRC="${RUST_XTENSA_SRC}/src"
+ENV PATH="${RUST_XTENSA_PREFIX}/bin:${LLVM_XTENSA_PREFIX}/bin:$PATH"
+
+RUN apt-get update \
+ && apt-get install -y gcc git wget make libncurses-dev flex bison gperf python python-pip python-setuptools python-serial python-cryptography python-future python-pyparsing
+
+ARG ESP_VERSION="1.22.0-80-g6c4433a-5.2.0"
+ENV ESP_PATH=/esp
+RUN curl \
+       --proto '=https' \
+       --tlsv1.2 \
+       -sSf \
+       -o "${ESP_PATH}.tar.gz" \
+       "https://dl.espressif.com/dl/xtensa-esp32-elf-linux64-${ESP_VERSION}.tar.gz" \
+ && mkdir "${ESP_PATH}" \
+ && tar -xzf "${ESP_PATH}.tar.gz" -C "${ESP_PATH}" \
+ && rm -rf "${ESP_PATH}.tar.gz"
+
+ENV PATH="${ESP_PATH}/xtensa-esp32-elf/bin:$PATH"
+
+ARG IDF_VERSION=3.3
+ENV IDF_PATH=/esp-idf
+RUN git clone -b "v${IDF_VERSION}" --depth 1 --recursive https://github.com/espressif/esp-idf "${IDF_PATH}" \
+ && pip install --user -r "${IDF_PATH}/requirements.txt"
+
+RUN chmod -R 0777 "${IDF_PATH}"
+
+RUN apt-get install -y jq
+
+COPY xtensa-entry.sh /
+ENTRYPOINT ["/xtensa-entry.sh", "xtensa-esp32-none-elf"]
