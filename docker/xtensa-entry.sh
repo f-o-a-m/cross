@@ -25,7 +25,7 @@ for binary_target in "${binary_targets[@]}"; do
         --chip "${CHIP}" \
         elf2image \
         -o "${t}.bin" \
-        "${t}"
+        "${t}" | tail -n +2
     fi
   done
 done
