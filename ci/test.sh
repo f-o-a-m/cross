@@ -66,8 +66,16 @@ main() {
 [build]
 xargo = true
 EOF
+
+        cargo_flags=
+
+        # Workaround until https://github.com/espressif/llvm-xtensa/issues/10 is fixed.
+        if [[ "${TARGET}" == xtensa-esp32-none-elf ]] || [[ "${TARGET}" == xtensa-esp8266-none-elf ]]; then
+            cargo_flags=(--release)
+        fi
+
         retry cargo fetch
-        cross build --lib --target $TARGET
+        cross build ${cargo_flags[@]} --lib --target $TARGET
         popd
 
         rm -rf $td
