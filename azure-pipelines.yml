@@ -75,16 +75,19 @@ jobs:
     steps:
       - template: ci/azure-install-rust.yml
       - bash: echo "##vso[task.setvariable variable=OS]$(echo "${AGENT_OS}" | tr '[:upper:]' '[:lower:]')"
-        displayName: Set OS variable
+        displayName: Set OS Variable
       - bash: echo "##vso[task.setvariable variable=BRANCH]${BUILD_SOURCEBRANCH##refs/heads/}"
         displayName: Set BRANCH variable
         condition: startsWith(variables['Build.SourceBranch'], 'refs/heads/')
       - bash: echo "##vso[task.setvariable variable=TAG]${BUILD_SOURCEBRANCH##refs/tags/}"
         displayName: Set TAG variable
         condition: startsWith(variables['Build.SourceBranch'], 'refs/tags/')
+      - bash: ./build-docker-image.sh "${TARGET}"
+        displayName: Build Docker Image
+        timeoutInMinutes: 360
+        condition: eq(variables['OS'], 'linux')
       - bash: ci/test.sh
         displayName: Test
-        timeoutInMinutes: 360
       - bash: cargo publish
         displayName: Publish on crates.io
         env:
