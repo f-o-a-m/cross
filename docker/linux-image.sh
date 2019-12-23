@@ -6,10 +6,11 @@ set -euo pipefail
 main() {
     # arch in the rust target
     local arch=$1 \
-          kversion=4.9.0-11
+          kversion=4.15.0-72
 
-    local debsource="deb http://http.debian.net/debian/ stretch main"
-    debsource="$debsource\ndeb http://security.debian.org/ stretch/updates main"
+    # local debsource="deb http://http.debian.net/debian/ stretch main"
+    #debsource="$debsource\ndeb http://security.debian.org/ stretch/updates main"
+    local debsource=""
 
     local dropbear="dropbear-bin"
 
@@ -20,11 +21,19 @@ main() {
     case $arch in
         aarch64)
             arch=arm64
-            kernel=$kversion-arm64
+            kernel=$kversion-generic
+            debsource="$debsource\ndeb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports/ bionic main multiverse restricted universe"
+            debsource="$debsource\ndeb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports/ bionic-backports main multiverse restricted universe"
+            debsource="$debsource\ndeb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports/ bionic-updates main multiverse restricted universe"
+            debsource="$debsource\ndeb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports/ bionic-security main multiverse restricted universe"
             ;;
         armv7)
             arch=armhf
-            kernel=$kversion-armmp
+            kernel=$kversion-generic
+            debsource="$debsource\ndeb [arch=armhf] http://ports.ubuntu.com/ubuntu-ports/ bionic main multiverse restricted universe"
+            debsource="$debsource\ndeb [arch=armhf] http://ports.ubuntu.com/ubuntu-ports/ bionic-backports main multiverse restricted universe"
+            debsource="$debsource\ndeb [arch=armhf] http://ports.ubuntu.com/ubuntu-ports/ bionic-updates main multiverse restricted universe"
+            debsource="$debsource\ndeb [arch=armhf] http://ports.ubuntu.com/ubuntu-ports/ bionic-security main multiverse restricted universe"
             ;;
         i686)
             arch=i386
@@ -79,7 +88,7 @@ main() {
             ;;
         x86_64)
             arch=amd64
-            kernel=$kversion-amd64
+            kernel=$kversion-generic
             ;;
         *)
             echo "Invalid arch: $arch"
@@ -100,10 +109,15 @@ main() {
             purge_list+=( $dep )
         fi
     done
+    apt-get install -y gnupg1
 
     # Download packages
-    mv /etc/apt/sources.list /etc/apt/sources.list.bak
-    echo -e "$debsource" > /etc/apt/sources.list
+    if [ -z "$debsource" ]; then
+      cp /etc/apt/sources.list /etc/apt/sources.list.bak
+    else
+      mv /etc/apt/sources.list /etc/apt/sources.list.bak
+      echo -e "$debsource" > /etc/apt/sources.list
+    fi
 
     # Old ubuntu does not support --add-architecture, so we directly change multiarch file
     if [ -f /etc/dpkg/dpkg.cfg.d/multiarch ]; then
@@ -119,6 +133,10 @@ main() {
     apt-key adv --recv-key --keyserver keyserver.ubuntu.com DA1B2CEA81DCBC61 # debian-ports
     apt-key adv --recv-key --keyserver keyserver.ubuntu.com CBF8D6FD518E17E1
     apt-key adv --recv-key --keyserver keyserver.ubuntu.com 06AED62430CB581C
+
+    apt-get purge -y gnupg
+    apt autoremove -y
+
     apt-get update
 
     mkdir -p -m 777 /qemu/$arch
