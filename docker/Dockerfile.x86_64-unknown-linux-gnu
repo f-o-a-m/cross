@@ -12,7 +12,17 @@ RUN apt-get purge --auto-remove -y cmake && \
 
 RUN apt-get install -y --no-install-recommends \
     g++ \
-    zlib1g-dev
+    zlib1g-dev \
+    wget unzip ca-certificates
+
+RUN mkdir -p /opt/protobuf/21.12 && \
+    cd /opt/protobuf/21.12 && \
+    wget -O protoc.zip https://github.com/protocolbuffers/protobuf/releases/download/v21.12/protoc-21.12-linux-x86_64.zip && \
+    unzip protoc.zip && \
+    rm protoc.zip && \
+    ln -s /opt/protobuf/21.12/bin/protoc /usr/bin/protoc
+
+ENV PROTOC=/opt/protobuf/21.12/bin/protoc
 
 COPY qemu.sh /
 RUN /qemu.sh x86_64 softmmu
